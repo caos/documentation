@@ -68,7 +68,7 @@ func getImports(file *ast.File) map[string]string {
 	return imports
 }
 
-func getVariableFromField(src []byte, field *ast.Field) (varName string, impName string, typeName string, pointer bool) {
+func getVariableFromField(src []byte, field *ast.Field) (varName string, impName string, typeName string, pointer bool, slice bool) {
 	fieldInSource := string(src[field.Pos()-1 : field.End()-1])
 
 	parts := strings.Split(fieldInSource, " ")
@@ -82,7 +82,12 @@ func getVariableFromField(src []byte, field *ast.Field) (varName string, impName
 
 	varName = parts[0]
 	inlineType := parts[1]
-	if strings.HasPrefix(parts[1], "*") {
+	if strings.HasPrefix(inlineType, "[]") {
+		inlineType = strings.TrimPrefix(inlineType, "[]")
+		slice = true
+	}
+
+	if strings.HasPrefix(inlineType, "*") {
 		inlineType = strings.TrimPrefix(inlineType, "*")
 		pointer = true
 	}
@@ -172,7 +177,7 @@ func getElementForStructInFile(path string, structName string, obj *object.Objec
 				fieldObj.Tag = field.Tag.Value
 			}
 
-			v, i, t, _ := getVariableFromField(src, field)
+			v, i, t, _, _ := getVariableFromField(src, field)
 			fieldObj.Fieldname = v
 
 			if i != "" {
