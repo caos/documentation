@@ -177,8 +177,9 @@ func getElementForStructInFile(path string, structName string, obj *object.Objec
 				fieldObj.Tag = field.Tag.Value
 			}
 
-			v, i, t, _, _ := getVariableFromField(src, field)
+			v, i, t, _, c := getVariableFromField(src, field)
 			fieldObj.Fieldname = v
+			fieldObj.Collection = c
 
 			if i != "" {
 				importPath := filepath.Join(os.ExpandEnv("$GOPATH"), "src", imports[i])
@@ -222,6 +223,7 @@ func objectToElement(obj *object.Object, ty string) *treeelement.TreeElement {
 		element.DefaultValue = obj.GetDefaultValue()
 		element.GoName = obj.GetFieldName()
 		element.GoPackage = obj.GetPackageName()
+		element.Collection = obj.IsCollection()
 	}
 	return element
 }

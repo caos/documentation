@@ -6,11 +6,19 @@ import (
 )
 
 type Object struct {
+	Collection  bool
 	Comments    string
 	Tag         string
 	Fieldname   string
 	PackageName string
 }
+
+const (
+	defPrefix = "@default:"
+	newLine   = "\n"
+	space     = " "
+	empty     = ""
+)
 
 func (o *Object) GetFieldName() string {
 	return o.Fieldname
@@ -30,28 +38,32 @@ func (o *Object) GetAttributeName(format string) string {
 	if err != nil {
 		firstLetter := strings.ToLower(string(o.Fieldname[0]))
 		rest := o.Fieldname[1:]
-		return strings.Join([]string{firstLetter, rest}, "")
+		return strings.Join([]string{firstLetter, rest}, empty)
 	}
 
 	return yml.Name
 }
 
+func (o *Object) IsCollection() bool {
+	return o.Collection
+}
+
 func (o *Object) GetDescription() string {
-	desc := ""
-	lines := strings.Split(o.Comments, "\n")
+	desc := empty
+	lines := strings.Split(o.Comments, newLine)
 	trimedLines := make([]string, 0)
 	for _, line := range lines {
-		trimedLines = append(trimedLines, strings.Trim(line, " "))
+		trimedLines = append(trimedLines, strings.Trim(line, space))
 	}
 
 	for _, line := range trimedLines {
-		if strings.HasPrefix(line, "@default") {
+		if strings.HasPrefix(line, defPrefix) {
 			continue
 		} else {
-			if desc == "" {
+			if desc == empty {
 				desc = line
 			} else {
-				desc = strings.Join([]string{desc, line}, " ")
+				desc = strings.Join([]string{desc, line}, space)
 			}
 		}
 	}
@@ -60,21 +72,23 @@ func (o *Object) GetDescription() string {
 }
 
 func (o *Object) GetDefaultValue() string {
-	def := ""
+	def := empty
 
-	lines := strings.Split(o.Comments, "\n")
+	lines := strings.Split(o.Comments, newLine)
 	trimedLines := make([]string, 0)
 	for _, line := range lines {
-		trimedLines = append(trimedLines, strings.Trim(line, " "))
+		trimedLine := strings.Trim(line, space)
+		if trimedLine != empty {
+			trimedLines = append(trimedLines, trimedLine)
+		}
 	}
 
 	for _, line := range trimedLines {
-		if strings.HasPrefix(line, "@default") {
-			return def
+		if strings.HasPrefix(line, defPrefix) {
+			def = strings.TrimPrefix(line, defPrefix)
 		} else {
 			continue
 		}
 	}
-
 	return def
 }
