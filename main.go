@@ -26,7 +26,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := doc.GenerateMarkDown("markdown"); err != nil {
+	if err := doc.GenerateMarkDown(md); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
