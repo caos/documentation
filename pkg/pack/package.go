@@ -1,8 +1,8 @@
 package pack
 
 import (
-	"github.com/caos/documentation/internal/object"
-	"github.com/caos/documentation/internal/treeelement"
+	"github.com/caos/documentation/pkg/object"
+	"github.com/caos/documentation/pkg/treeelement"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -68,7 +68,7 @@ func getImports(file *ast.File) map[string]string {
 	return imports
 }
 
-func getVariableFromField(src []byte, field *ast.Field) (varName string, impName string, typeName string, pointer bool, slice bool) {
+func getVariableFromField(src []byte, field *ast.Field) (varName string, impName string, typeName string, pointer bool, slice bool, mp bool, mapKeyType string) {
 	fieldInSource := string(src[field.Pos()-1 : field.End()-1])
 
 	parts := strings.Split(fieldInSource, " ")
@@ -82,6 +82,14 @@ func getVariableFromField(src []byte, field *ast.Field) (varName string, impName
 
 	varName = parts[0]
 	inlineType := parts[1]
+	if strings.HasPrefix(inlineType, "map") {
+		inlineType = strings.TrimPrefix(inlineType, "map")
+		mp = true
+		typeParts := strings.SplitAfter(inlineType, "]")
+		mapKeyType = strings.TrimPrefix(strings.TrimSuffix(typeParts[0], "]"), "[")
+		inlineType = strings.TrimPrefix(inlineType, typeParts[0])
+	}
+
 	if strings.HasPrefix(inlineType, "[]") {
 		inlineType = strings.TrimPrefix(inlineType, "[]")
 		slice = true
@@ -177,9 +185,11 @@ func getElementForStructInFile(path string, structName string, obj *object.Objec
 				fieldObj.Tag = field.Tag.Value
 			}
 
-			v, i, t, _, c := getVariableFromField(src, field)
+			v, i, t, _, c, m, mkey := getVariableFromField(src, field)
 			fieldObj.Fieldname = v
 			fieldObj.Collection = c
+			fieldObj.Mapkey = mkey
+			fieldObj.MapType = m
 
 			if i != "" {
 				importPath := filepath.Join(os.ExpandEnv("$GOPATH"), "src", imports[i])
@@ -188,7 +198,15 @@ func getElementForStructInFile(path string, structName string, obj *object.Objec
 				if err != nil {
 					return false
 				}
-				element.SubElements = append(element.SubElements, subElement)
+				if subElement != nil {
+					if subElement.Inline {
+						if subElement.SubElements != nil {
+							element.SubElements = append(element.SubElements, subElement.SubElements...)
+						}
+					} else {
+						element.SubElements = append(element.SubElements, subElement)
+					}
+				}
 			} else {
 				subElement, err := New(filepath.Dir(path)).recursiveGetElementForStruct(t, fieldObj)
 				if err != nil {
@@ -211,10 +229,11 @@ func objectToElement(obj *object.Object, ty string) *treeelement.TreeElement {
 		GoType:      ty,
 		SubElements: make([]*treeelement.TreeElement, 0),
 	}
+	format := "yaml"
 
 	if obj != nil {
 		element.FieldDescription = obj.GetDescription()
-		attrName := obj.GetAttributeName("yaml")
+		attrName := obj.GetAttributeName(format)
 		if attrName != "" {
 			element.AttributeName = attrName
 		} else {
@@ -224,6 +243,8 @@ func objectToElement(obj *object.Object, ty string) *treeelement.TreeElement {
 		element.GoName = obj.GetFieldName()
 		element.GoPackage = obj.GetPackageName()
 		element.Collection = obj.IsCollection()
+		element.Inline = obj.IsInline(format)
+		element.Map = obj.MapType
 	}
 	return element
 }

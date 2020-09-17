@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/caos/documentation/internal/docu"
+	"github.com/caos/documentation/pkg/docu"
 	"os"
 )
 
@@ -18,15 +18,13 @@ func main() {
 		fmt.Println("Please provide all parameters")
 	}
 
-	structNames := []string{struc}
-
 	doc := docu.New()
-	if err := doc.Parse(path, structNames); err != nil {
+	if err := doc.Parse(path, struc); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 
-	if err := doc.GenerateMarkDown(md); err != nil {
+	if err := doc.GenerateMarkDown(md, nil); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}

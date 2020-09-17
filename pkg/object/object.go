@@ -11,6 +11,8 @@ type Object struct {
 	Tag         string
 	Fieldname   string
 	PackageName string
+	MapType     bool
+	Mapkey      string
 }
 
 const (
@@ -46,6 +48,25 @@ func (o *Object) GetAttributeName(format string) string {
 
 func (o *Object) IsCollection() bool {
 	return o.Collection
+}
+
+func (o *Object) IsInline(format string) bool {
+	tag := strings.TrimSuffix(strings.TrimPrefix(o.Tag, "`"), "`")
+	tags, err := structtag.Parse(tag)
+	if err != nil {
+		return false
+	}
+
+	yml, err := tags.Get(format)
+	if err == nil {
+		for _, option := range yml.Options {
+			if option == "inline" {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (o *Object) GetDescription() string {

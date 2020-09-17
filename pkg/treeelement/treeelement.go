@@ -1,7 +1,7 @@
 package treeelement
 
 import (
-	"github.com/caos/documentation/internal/markdown"
+	"github.com/caos/documentation/pkg/markdown"
 	"path/filepath"
 	"strings"
 )
@@ -12,6 +12,7 @@ const (
 	titleDesc  = "Description"
 	titleDef   = "Default"
 	titleCol   = "Collection"
+	titleMap   = "Map"
 	linkPrefix = "[here]("
 	linkSuffix = ")"
 )
@@ -25,6 +26,9 @@ type TreeElement struct {
 	GoName           string
 	GoPackage        string
 	Collection       bool
+	Map              bool
+	Inline           bool
+	Replaced         bool
 	SubElements      []*TreeElement
 }
 
@@ -33,9 +37,10 @@ type TreeElementLine struct {
 	FieldDescription string
 	DefaultValue     string
 	Collection       string
+	Map              string
 }
 
-func (t *TreeElement) GetMDFile(basePath string) ([]byte, string) {
+func (t *TreeElement) GetMDFile(basePath string, replace map[string]string) ([]byte, string) {
 	md := markdown.New()
 
 	md.AddHeader1(t.GoType)
@@ -44,12 +49,13 @@ func (t *TreeElement) GetMDFile(basePath string) ([]byte, string) {
 	fdLength := len(titleDesc)
 	dvLength := len(titleDef)
 	coLength := len(titleCol)
+	mpLength := len(titleMap)
 	for _, subelement := range t.SubElements {
 		if subelement == nil {
 			continue
 		}
 
-		treeline := subelement.GetLine()
+		treeline := subelement.GetLine(replace)
 
 		if len(treeline.AttributeName) > anLength {
 			anLength = len(treeline.AttributeName)
@@ -62,6 +68,9 @@ func (t *TreeElement) GetMDFile(basePath string) ([]byte, string) {
 		}
 		if len(treeline.Collection) > coLength {
 			coLength = len(treeline.Collection)
+		}
+		if len(treeline.Map) > coLength {
+			coLength = len(treeline.Map)
 		}
 	}
 
@@ -76,6 +85,7 @@ func (t *TreeElement) GetMDFile(basePath string) ([]byte, string) {
 		{titleDesc, fdLength},
 		{titleDef, dvLength},
 		{titleCol, coLength},
+		{titleMap, mpLength},
 	}
 	md.AddTableHeader(headerEntries)
 
@@ -83,13 +93,14 @@ func (t *TreeElement) GetMDFile(basePath string) ([]byte, string) {
 		if subelement == nil {
 			continue
 		}
-		treeline := subelement.GetLine()
+		treeline := subelement.GetLine(replace)
 
 		entries := []*markdown.TableEntry{
 			{treeline.AttributeName, anLength},
 			{treeline.FieldDescription, fdLength},
 			{treeline.DefaultValue, dvLength},
 			{treeline.Collection, coLength},
+			{treeline.Map, mpLength},
 		}
 		md.AddTableLine(entries)
 	}
@@ -97,10 +108,35 @@ func (t *TreeElement) GetMDFile(basePath string) ([]byte, string) {
 	return md.Build(), filepath.Join(basePath, strings.Join([]string{t.GoType, fileEnding}, "."))
 }
 
-func (t *TreeElement) GetLine() *TreeElementLine {
+func (t *TreeElement) GetLine(replace map[string]string) *TreeElementLine {
+	if replace != nil {
+		replaceValue, found := replace[t.GoName]
+		if found {
+			t.Replaced = true
+			fieldDesc := strings.Join([]string{"Any Kind from Type ", linkPrefix, "../../../" + replaceValue, linkSuffix, " can be used"}, "")
+
+			col := ""
+			if t.Collection {
+				col = "X"
+			}
+
+			mp := ""
+			if t.Map {
+				mp = "X"
+			}
+			return &TreeElementLine{
+				AttributeName:    t.AttributeName,
+				FieldDescription: fieldDesc,
+				DefaultValue:     t.DefaultValue,
+				Collection:       col,
+				Map:              mp,
+			}
+		}
+	}
+
 	fieldDesc := t.FieldDescription
 	if t.SubElements != nil && len(t.SubElements) > 0 {
-		linkPath := filepath.Join(t.GoPackage, strings.Join([]string{t.GoType, fileEnding}, "."))
+		linkPath := filepath.Join(t.GoPackage, t.GoType, strings.Join([]string{t.GoType, fileEnding}, "."))
 
 		if fieldDesc != "" {
 			fieldDesc = strings.Join([]string{fieldDesc, ", ", linkPrefix, linkPath, linkSuffix}, "")
@@ -114,10 +150,16 @@ func (t *TreeElement) GetLine() *TreeElementLine {
 		col = "X"
 	}
 
+	mp := ""
+	if t.Map {
+		mp = "X"
+	}
+
 	return &TreeElementLine{
 		AttributeName:    t.AttributeName,
 		FieldDescription: fieldDesc,
 		DefaultValue:     t.DefaultValue,
 		Collection:       col,
+		Map:              mp,
 	}
 }
