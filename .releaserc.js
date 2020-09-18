@@ -4,7 +4,7 @@ module.exports = {
         "@semantic-release/release-notes-generator",
         ["@semantic-release/github", {
             "assets": [
-              {"path": "./documentation", "label": "Documentation"},
+              {"path": "./artifacts/documentation", "label": "Documentation"},
             ]
         }]
     ]

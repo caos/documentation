@@ -26,6 +26,6 @@ jobs:
           [[ "$VERSION" == "v" ]] && echo "Exiting, as no new version needs to be released" && exit 0
 
           go mod download
-          CGO_ENABLED=0 GOOS=linux go build -o ./documentation  main.go
+          CGO_ENABLED=0 GOOS=linux go build -o ./artifacts/documentation  main.go
 
           npx semantic-release && exit 0
