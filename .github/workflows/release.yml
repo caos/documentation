@@ -3,7 +3,7 @@ on: push
 
 env:
   GO_VERSION: '1.14'
-
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   go-build:
