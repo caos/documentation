@@ -1,0 +1,30 @@
+name: Release
+jobs:
+  release:
+    name: Release Documentation
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Source Checkout
+        id: source-checkout
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+      - name: Release
+        id: release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GO111MODULE: on
+          CGO_ENABLED: 0
+        run: |
+          npm install semantic-release@v16.0.2
+          export BRANCH=${GITHUB_REF##*/}
+          export VERSION=${BRANCH}-dev
+
+          VERSION="v$(npx semantic-release --dry-run --plugins=@semantic-release/commit-analyzer --analize-commits | grep "The next release version is" | sed -ne 's/.*The\ next\ release\ version\ is\ \([0-9]\+\.[0-9]\+\.[0-9]\+\)$/\1/p')"
+          [[ "$VERSION" == "v" ]] && echo "Exiting, as no new version needs to be released" && exit 0
+
+          go mod download
+          CGO_ENABLED=0 GOOS=linux go build -o ./documentation  main.go
+
+          npx semantic-release && exit 0
