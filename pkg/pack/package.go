@@ -1,6 +1,7 @@
 package pack
 
 import (
+	"github.com/caos/documentation/pkg/modules"
 	"github.com/caos/documentation/pkg/object"
 	"github.com/caos/documentation/pkg/treeelement"
 	"go/ast"
@@ -14,6 +15,7 @@ import (
 
 type Package struct {
 	BasePath string
+	Modules  *modules.Modules
 	Files    []string
 }
 
@@ -22,6 +24,7 @@ func New(path string) *Package {
 
 	return &Package{
 		BasePath: basePath,
+		Modules:  modules.New(basePath),
 	}
 }
 
@@ -118,7 +121,7 @@ func (p *Package) recursiveGetElementForStruct(structName string, obj *object.Ob
 	goFiles := p.GetGoFileList()
 
 	for _, path := range goFiles {
-		treeElement, err := getElementForStructInFile(path, structName, obj)
+		treeElement, err := getElementForStructInFile(path, structName, obj, p.Modules)
 		if err != nil {
 			return nil, err
 		}
@@ -130,7 +133,7 @@ func (p *Package) recursiveGetElementForStruct(structName string, obj *object.Ob
 	return nil, nil
 }
 
-func getElementForStructInFile(path string, structName string, obj *object.Object) (*treeelement.TreeElement, error) {
+func getElementForStructInFile(path string, structName string, obj *object.Object, modules *modules.Modules) (*treeelement.TreeElement, error) {
 	src, file, err := parseFile(path)
 	if err != nil {
 		return nil, err
@@ -192,7 +195,7 @@ func getElementForStructInFile(path string, structName string, obj *object.Objec
 			fieldObj.MapType = m
 
 			if i != "" {
-				importPath := filepath.Join(os.ExpandEnv("$GOPATH"), "src", imports[i])
+				importPath := modules.GetPathForImport(imports[i])
 				fieldObj.PackageName = filepath.Base(importPath)
 				subElement, err := New(importPath).recursiveGetElementForStruct(t, fieldObj)
 				if err != nil {

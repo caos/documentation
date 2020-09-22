@@ -9,7 +9,8 @@ import (
 )
 
 type Documentation struct {
-	tree []*treeelement.TreeElement
+	tree       []*treeelement.TreeElement
+	modulePath string
 }
 
 func New() *Documentation {
