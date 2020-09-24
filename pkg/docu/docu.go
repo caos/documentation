@@ -1,7 +1,7 @@
 package docu
 
 import (
-	"github.com/caos/documentation/pkg/pack"
+	"github.com/caos/documentation/pkg/code"
 	"github.com/caos/documentation/pkg/treeelement"
 	"io/ioutil"
 	"os"
@@ -21,8 +21,7 @@ func New() *Documentation {
 func (d *Documentation) Parse(path string, structName string) error {
 	elements := make([]*treeelement.TreeElement, 0)
 
-	p := pack.New(path)
-	element, err := p.GetElementForStruct(structName)
+	element, err := code.GetElementForStruct(path, structName)
 	if err != nil {
 		return err
 	}
