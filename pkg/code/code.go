@@ -163,7 +163,27 @@ func getElementForStructInFile(path string, structName string, obj *object.Objec
 
 			if oki {
 				ty := i.Obj.Decl.(*ast.TypeSpec)
-				strc := ty.Type.(*ast.StructType)
+				sel, oksel := ty.Type.(*ast.SelectorExpr)
+				strc, oks := ty.Type.(*ast.StructType)
+				if !oks && oksel {
+					identX := sel.X.(*ast.Ident)
+
+					fieldObj.Fieldname = structName
+					fieldObj.Collection = false
+
+					importPath := modules.CachedModule(path).GetPathForImport(imports[identX.Name])
+					fieldObj.PackageName = filepath.Base(importPath)
+					subElement, err := recursiveGetElementForStruct(modules.CachedModule(importPath).CachePackage(importPath), sel.Sel.Name, fieldObj)
+					if err != nil {
+						return false
+					}
+					if subElement != nil {
+						if subElement.SubElements != nil {
+							element.SubElements = append(element.SubElements, subElement.SubElements...)
+						}
+					}
+					return true
+				}
 
 				for _, field := range strc.Fields.List {
 					fieldObj := &object.Object{}
