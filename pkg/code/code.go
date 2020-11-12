@@ -46,6 +46,12 @@ func recursiveGetElementForStruct(p *pack.Package, structName string, obj *objec
 	treeElement, cached := p.CachedElements[structName]
 	if cached {
 		retTreeElement := objectToElement(obj, treeElement.GoType)
+		if treeElement.Collection {
+			retTreeElement.Collection = true
+		}
+		if treeElement.Map {
+			retTreeElement.Map = true
+		}
 		retTreeElement.SubElements = treeElement.SubElements
 		return retTreeElement, nil
 	}
@@ -128,6 +134,8 @@ func getElementForStructInFile(path string, structName string, obj *object.Objec
 				return false
 			}
 			if subElement != nil {
+				element.Collection = subElement.Collection
+				element.Map = subElement.Map
 				if subElement.SubElements != nil {
 					element.SubElements = append(element.SubElements, subElement.SubElements...)
 				}
@@ -155,6 +163,8 @@ func getElementForStructInFile(path string, structName string, obj *object.Objec
 				}
 				if subElement != nil {
 					if subElement.SubElements != nil {
+						element.Map = subElement.Map
+						element.Collection = subElement.Collection
 						element.SubElements = append(element.SubElements, subElement.SubElements...)
 					}
 				}
@@ -169,7 +179,7 @@ func getElementForStructInFile(path string, structName string, obj *object.Objec
 					identX := sel.X.(*ast.Ident)
 
 					fieldObj.Fieldname = structName
-					fieldObj.Collection = false
+					fieldObj.Collection = true
 
 					importPath := modules.CachedModule(path).GetPathForImport(imports[identX.Name])
 					fieldObj.PackageName = filepath.Base(importPath)
@@ -179,6 +189,8 @@ func getElementForStructInFile(path string, structName string, obj *object.Objec
 					}
 					if subElement != nil {
 						if subElement.SubElements != nil {
+							element.Map = subElement.Map
+							element.Collection = subElement.Collection
 							element.SubElements = append(element.SubElements, subElement.SubElements...)
 						}
 					}
@@ -274,8 +286,14 @@ func getElementForStructInFile(path string, structName string, obj *object.Objec
 					return false
 				}
 				if subElement != nil {
-					// another struct type
-					element.SubElements = append(element.SubElements, subElement)
+					if subElement.Inline {
+						if subElement.SubElements != nil {
+							element.SubElements = append(element.SubElements, subElement.SubElements...)
+						}
+					} else {
+						// another struct type
+						element.SubElements = append(element.SubElements, subElement)
+					}
 				} else {
 					// basic types
 					element.SubElements = append(element.SubElements, objectToElement(fieldObj, t))
@@ -349,10 +367,27 @@ func getVariableFromField(src []byte, field *ast.Field) (varName string, impName
 			copyParts = append(copyParts, part)
 		}
 	}
-	parts = copyParts
 
-	varName = parts[0]
-	inlineType := parts[1]
+	startTrim := false
+	parts = make([]string, 0)
+	for _, part := range copyParts {
+		if strings.HasPrefix(part, "`") {
+			startTrim = true
+		}
+		if !startTrim {
+			parts = append(parts, part)
+		}
+	}
+
+	inlineType := ""
+	if len(parts) >= 2 {
+		varName = parts[0]
+		inlineType = parts[1]
+	} else if len(parts) < 2 {
+		varName = ""
+		inlineType = parts[0]
+	}
+
 	if strings.HasPrefix(inlineType, "map") {
 		inlineType = strings.TrimPrefix(inlineType, "map")
 		mp = true
@@ -378,5 +413,6 @@ func getVariableFromField(src []byte, field *ast.Field) (varName string, impName
 	} else {
 		typeName = typeParts[0]
 	}
+
 	return
 }
