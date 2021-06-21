@@ -46,17 +46,22 @@ func recursiveGetElementForStruct(p *pack.Package, structName string, obj *objec
 
 	treeElement, cached := p.CachedElements[structName]
 	if cached {
-		retTreeElement := *treeElement
-		return &retTreeElement, nil
-		/*retTreeElement := objectToElement(obj, treeElement.GoType)
+		retTreeElement := objectToElement(obj, treeElement.GoType)
 		if treeElement.Collection {
 			retTreeElement.Collection = true
 		}
 		if treeElement.Map {
 			retTreeElement.Map = true
 		}
+		if treeElement.Replaced {
+			retTreeElement.Replaced = true
+		}
+		if treeElement.Inline {
+			retTreeElement.Inline = true
+		}
+		retTreeElement.TypeDescription = treeElement.TypeDescription
 		retTreeElement.SubElements = treeElement.SubElements
-		return retTreeElement, nil*/
+		return retTreeElement, nil
 	}
 
 	goFiles := p.GetGoFileList()
