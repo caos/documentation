@@ -37,10 +37,12 @@ func (o *Object) GetAttributeName(format string) string {
 	}
 
 	yml, err := tags.Get(format)
-	if err != nil {
+	if err != nil && len(o.Fieldname) > 0 {
 		firstLetter := strings.ToLower(string(o.Fieldname[0]))
 		rest := o.Fieldname[1:]
 		return strings.Join([]string{firstLetter, rest}, empty)
+	} else if err != nil && len(o.Fieldname) == 0 {
+		return ""
 	}
 
 	return yml.Name

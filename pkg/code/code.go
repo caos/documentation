@@ -10,6 +10,7 @@ import (
 	"go/token"
 	"io/ioutil"
 	"path/filepath"
+	"reflect"
 	"strings"
 )
 
@@ -45,7 +46,9 @@ func recursiveGetElementForStruct(p *pack.Package, structName string, obj *objec
 
 	treeElement, cached := p.CachedElements[structName]
 	if cached {
-		retTreeElement := objectToElement(obj, treeElement.GoType)
+		retTreeElement := *treeElement
+		return &retTreeElement, nil
+		/*retTreeElement := objectToElement(obj, treeElement.GoType)
 		if treeElement.Collection {
 			retTreeElement.Collection = true
 		}
@@ -53,7 +56,7 @@ func recursiveGetElementForStruct(p *pack.Package, structName string, obj *objec
 			retTreeElement.Map = true
 		}
 		retTreeElement.SubElements = treeElement.SubElements
-		return retTreeElement, nil
+		return retTreeElement, nil*/
 	}
 
 	goFiles := p.GetGoFileList()
@@ -64,7 +67,7 @@ func recursiveGetElementForStruct(p *pack.Package, structName string, obj *objec
 			return nil, err
 		}
 
-		if treeElement != nil {
+		if treeElement != nil && !reflect.DeepEqual(*treeElement, treeelement.TreeElement{}) {
 			p.CachedElements[structName] = treeElement
 			return treeElement, nil
 		}
@@ -73,15 +76,25 @@ func recursiveGetElementForStruct(p *pack.Package, structName string, obj *objec
 }
 
 func getElementForStructInFile(path string, structName string, obj *object.Object) (*treeelement.TreeElement, error) {
-	src, file, err := parseFile(path)
+	_, file, err := parseFile(path)
 	if err != nil {
 		return nil, err
 	}
 
 	imports := getImports(file)
+	element := &treeelement.TreeElement{}
+	typeComments := getTypeComments(file)
 
-	var element *treeelement.TreeElement
+	ast.Inspect(file, func(x ast.Node) bool {
+		if err := NodeToTreeElements(path, imports, structName, element, x, obj, typeComments); err != nil {
+			return false
+		}
+		return true
+	})
+	return element, nil
+}
 
+func getTypeComments(file *ast.File) []string {
 	typeComments := make([]string, 0)
 	for _, node := range file.Decls {
 		gd, ok := node.(*ast.GenDecl)
@@ -94,215 +107,7 @@ func getElementForStructInFile(path string, structName string, obj *object.Objec
 			typeComments = append(typeComments, strings.Join(commentText, " "))
 		}
 	}
-
-	ast.Inspect(file, func(x ast.Node) bool {
-		// when type definition
-		t, okt := x.(*ast.TypeSpec)
-		if !okt || structName != t.Name.Name {
-			return true
-		}
-		// when struct
-		s, oks := t.Type.(*ast.StructType)
-		a, oka := t.Type.(*ast.ArrayType)
-		sel, oksel := t.Type.(*ast.SelectorExpr)
-		if !oks && !oka && !oksel {
-			return true
-		}
-
-		element = objectToElement(obj, t.Name.Name)
-		if t.Doc != nil && t.Doc.Text() != "" {
-			element.TypeDescription = t.Doc.Text()
-		}
-		prefix := strings.Join([]string{t.Name.Name, ":"}, "")
-		for _, comment := range typeComments {
-			if strings.HasPrefix(comment, prefix) {
-				element.TypeDescription = strings.TrimPrefix(comment, prefix)
-			}
-		}
-
-		// if type of a type
-		if sel != nil {
-			fieldObj := &object.Object{}
-			identX := sel.X.(*ast.Ident)
-
-			fieldObj.Fieldname = structName
-
-			importPath := modules.CachedModule(path).GetPathForImport(imports[identX.Name])
-			fieldObj.PackageName = filepath.Base(importPath)
-			subElement, err := recursiveGetElementForStruct(modules.CachedModule(importPath).CachePackage(importPath), sel.Sel.Name, fieldObj)
-			if err != nil {
-				return false
-			}
-			if subElement != nil {
-				element.Collection = subElement.Collection
-				element.Map = subElement.Map
-				if subElement.SubElements != nil {
-					element.SubElements = append(element.SubElements, subElement.SubElements...)
-				}
-			}
-			return true
-		}
-
-		// if array type
-		if a != nil {
-			fieldObj := &object.Object{}
-			sel, oksel := a.Elt.(*ast.SelectorExpr)
-			i, oki := a.Elt.(*ast.Ident)
-
-			if oksel {
-				identX := sel.X.(*ast.Ident)
-
-				fieldObj.Fieldname = structName
-				fieldObj.Collection = true
-
-				importPath := modules.CachedModule(path).GetPathForImport(imports[identX.Name])
-				fieldObj.PackageName = filepath.Base(importPath)
-				subElement, err := recursiveGetElementForStruct(modules.CachedModule(importPath).CachePackage(importPath), sel.Sel.Name, fieldObj)
-				if err != nil {
-					return false
-				}
-				if subElement != nil {
-					if subElement.SubElements != nil {
-						element.Map = subElement.Map
-						element.Collection = subElement.Collection
-						element.SubElements = append(element.SubElements, subElement.SubElements...)
-					}
-				}
-				return true
-			}
-
-			if oki {
-				ty := i.Obj.Decl.(*ast.TypeSpec)
-				sel, oksel := ty.Type.(*ast.SelectorExpr)
-				strc, oks := ty.Type.(*ast.StructType)
-				if !oks && oksel {
-					identX := sel.X.(*ast.Ident)
-
-					fieldObj.Fieldname = structName
-					fieldObj.Collection = true
-
-					importPath := modules.CachedModule(path).GetPathForImport(imports[identX.Name])
-					fieldObj.PackageName = filepath.Base(importPath)
-					subElement, err := recursiveGetElementForStruct(modules.CachedModule(importPath).CachePackage(importPath), sel.Sel.Name, fieldObj)
-					if err != nil {
-						return false
-					}
-					if subElement != nil {
-						if subElement.SubElements != nil {
-							element.Map = subElement.Map
-							element.Collection = subElement.Collection
-							element.SubElements = append(element.SubElements, subElement.SubElements...)
-						}
-					}
-					return true
-				}
-
-				for _, field := range strc.Fields.List {
-					fieldObj := &object.Object{}
-					if field.Doc != nil && field.Doc.Text() != "" {
-						fieldObj.Comments = field.Doc.Text()
-					}
-					if field.Tag != nil && field.Tag.Value != "" {
-						fieldObj.Tag = field.Tag.Value
-					}
-
-					v, i, t, _, c, m, mkey := getVariableFromField(src, field)
-					fieldObj.Fieldname = v
-					fieldObj.Collection = c
-					fieldObj.Mapkey = mkey
-					fieldObj.MapType = m
-
-					if i != "" {
-						importPath := modules.CachedModule(path).GetPathForImport(imports[i])
-						fieldObj.PackageName = filepath.Base(importPath)
-						subElement, err := recursiveGetElementForStruct(modules.CachedModule(importPath).CachePackage(importPath), t, fieldObj)
-						if err != nil {
-							return false
-						}
-						if subElement != nil {
-							if subElement.Inline {
-								if subElement.SubElements != nil {
-									element.SubElements = append(element.SubElements, subElement.SubElements...)
-								}
-							} else {
-								element.SubElements = append(element.SubElements, subElement)
-							}
-						}
-					} else {
-						dir := filepath.Dir(path)
-						subElement, err := recursiveGetElementForStruct(modules.CachedModule(dir).CachePackage(dir), t, fieldObj)
-						if err != nil {
-							return false
-						}
-						if subElement != nil {
-							// another struct type
-							element.SubElements = append(element.SubElements, subElement)
-						} else {
-							// basic types
-							element.SubElements = append(element.SubElements, objectToElement(fieldObj, t))
-						}
-					}
-				}
-				return true
-			}
-		}
-
-		//if struct type
-		for _, field := range s.Fields.List {
-			fieldObj := &object.Object{}
-			if field.Doc != nil && field.Doc.Text() != "" {
-				fieldObj.Comments = field.Doc.Text()
-			}
-			if field.Tag != nil && field.Tag.Value != "" {
-				fieldObj.Tag = field.Tag.Value
-			}
-
-			v, i, t, _, c, m, mkey := getVariableFromField(src, field)
-			fieldObj.Fieldname = v
-			fieldObj.Collection = c
-			fieldObj.Mapkey = mkey
-			fieldObj.MapType = m
-
-			if i != "" {
-				importPath := modules.CachedModule(path).GetPathForImport(imports[i])
-				fieldObj.PackageName = filepath.Base(importPath)
-				subElement, err := recursiveGetElementForStruct(modules.CachedModule(importPath).CachePackage(importPath), t, fieldObj)
-				if err != nil {
-					return false
-				}
-				if subElement != nil {
-					if subElement.Inline {
-						if subElement.SubElements != nil {
-							element.SubElements = append(element.SubElements, subElement.SubElements...)
-						}
-					} else {
-						element.SubElements = append(element.SubElements, subElement)
-					}
-				}
-			} else {
-				dir := filepath.Dir(path)
-				subElement, err := recursiveGetElementForStruct(modules.CachedModule(dir).CachePackage(dir), t, fieldObj)
-				if err != nil {
-					return false
-				}
-				if subElement != nil {
-					if subElement.Inline {
-						if subElement.SubElements != nil {
-							element.SubElements = append(element.SubElements, subElement.SubElements...)
-						}
-					} else {
-						// another struct type
-						element.SubElements = append(element.SubElements, subElement)
-					}
-				} else {
-					// basic types
-					element.SubElements = append(element.SubElements, objectToElement(fieldObj, t))
-				}
-			}
-		}
-		return false
-	})
-	return element, nil
+	return typeComments
 }
 
 func objectToElement(obj *object.Object, ty string) *treeelement.TreeElement {
