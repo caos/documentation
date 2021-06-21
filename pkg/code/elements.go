@@ -1,7 +1,6 @@
 package code
 
 import (
-	"fmt"
 	"github.com/caos/documentation/pkg/modules"
 	"github.com/caos/documentation/pkg/object"
 	"github.com/caos/documentation/pkg/treeelement"
@@ -53,14 +52,14 @@ func NodeToTreeElements(
 		}
 	}
 	if oki && i != nil {
-		src, err := ioutil.ReadFile(filePath)
+		/*src, err := ioutil.ReadFile(filePath)
 		if err != nil {
 			return err
 		}
 
 		iFace := string(src[i.Pos()-1 : i.End()-1])
 		fmt.Println(iFace)
-		return nil
+		return nil*/
 	}
 	return nil
 }
